@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Recomendación de Música</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+
+        .container {
+            width: 80%;
+            margin: auto;
+            overflow: hidden;
+        }
+
+        header {
+            background: #50b3a2;
+            color: #fff;
+            padding-top: 30px;
+            min-height: 70px;
+            border-bottom: #e8491d 3px solid;
+        }
+
+        header a {
+            color: #fff;
+            text-decoration: none;
+            text-transform: uppercase;
+            font-size: 16px;
+        }
+
+        header ul {
+            padding: 0;
+            list-style: none;
+        }
+
+        header li {
+            float: left;
+            display: inline;
+            padding: 0 20px 0 20px;
+        }
+
+        header #branding {
+            float: left;
+        }
+
+        header #branding h1 {
+            margin: 0;
+        }
+
+        header nav {
+            float: right;
+            margin-top: 10px;
+        }
+
+        header .highlight,
+        header .current a {
+            color: #e8491d;
+            font-weight: bold;
+        }
+
+        header a:hover {
+            color: #cccccc;
+            font-weight: bold;
+        }
+
+        form {
+            background: #fff;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        form div {
+            margin-bottom: 10px;
+        }
+
+        form div label {
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        form div input,
+        form div select {
+            padding: 10px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .results {
+            background: #fff;
+            padding: 20px;
+            margin-top: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div class="container">
+            <div id="branding">
+                <h1>Sistema de Recomendación de Música</h1>
+            </div>
+            <nav>
+                <ul>
+                    <li class="current"><a href="index.html">Home</a></li>
+                </ul>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <h2>Buscar Canciones Similares</h2>
+        <form id="searchSongForm">
+            <div>
+                <label for="searchTempo">Tempo (ej. 120 para un ritmo rápido):</label>
+                <select id="searchTempo">
+                    <option value="60-80">60-80</option>
+                    <option value="80-100">80-100</option>
+                    <option value="100-120">100-120</option>
+                    <option value="120-140">120-140</option>
+                    <option value="140-160">140-160</option>
+                </select>
+            </div>
+            <div>
+                <label for="searchDuration">Duración (en segundos, ej. 200):</label>
+                <select id="searchDuration">
+                    <option value="100-200">100-200</option>
+                    <option value="200-300">200-300</option>
+                    <option value="300-400">300-400</option>
+                </select>
+            </div>
+            <div>
+                <label for="searchGenre">Género:</label>
+                <select id="searchGenre">
+                    <option value="all">Todos</option>
+                    <option value="pop">Pop</option>
+                    <option value="rock">Rock</option>
+                    <option value="jazz">Jazz</option>
+                    <option value="classical">Clásica</option>
+                    <option value="reggaeton">Reggaetón</option>
+                    <option value="cumbia">Cumbia</option>
+                </select>
+            </div>
+            <div>
+                <label for="searchArtistGender">Género del Artista:</label>
+                <select id="searchArtistGender">
+                    <option value="all">Todos</option>
+                    <option value="male">Masculino</option>
+                    <option value="female">Femenino</option>
+                    <option value="band">Banda</option>
+                </select>
+            </div>
+            <div>
+                <label for="searchMood">Estado de Ánimo:</label>
+                <select id="searchMood">
+                    <option value="all">Todos</option>
+                    <option value="happy">Feliz</option>
+                    <option value="sad">Triste</option>
+                    <option value="neutral">Neutral</option>
+                </select>
+            </div>
+            <div>
+                <input type="submit" value="Buscar">
+            </div>
+        </form>
+        <div id="results" class="results"></div>
+    </div>
+
+    <script>
+        class VPTree {
+            constructor() {
+                this.tree = null;
+            }
+
+            build(points) {
+                this.tree = this._buildTree(points);
+            }
+
+            _buildTree(points) {
+                if (points.length === 0) {
+                    return null;
+                }
+
+                const node = {};
+                const idx = Math.floor(Math.random() * points.length);
+                node.point = points[idx];
+                points.splice(idx, 1);
+
+                if (points.length === 0) {
+                    node.left = null;
+                    node.right = null;
+                    return node;
+                }
+
+                const distances = points.map(p => this._euclideanDistance(node.point.features, p.features));
+                const median = this._median(distances);
+
+                node.threshold = median;
+                const leftPoints = [];
+                const rightPoints = [];
+
+                for (let i = 0; i < points.length; i++) {
+                    if (distances[i] < median) {
+                        leftPoints.push(points[i]);
+                    } else {
+                        rightPoints.push(points[i]);
+                    }
+                }
+
+                node.left = this._buildTree(leftPoints);
+                node.right = this._buildTree(rightPoints);
+
+                return node;
+            }
+
+            _euclideanDistance(a, b) {
+                let sum = 0;
+                for (let i = 0; i < a.length; i++) {
+                    sum += Math.pow(a[i] - b[i], 2);
+                }
+                return Math.sqrt(sum);
+            }
+
+            _median(values) {
+                values.sort((a, b) => a - b);
+                const half = Math.floor(values.length / 2);
+                if (values.length % 2) {
+                    return values[half];
+                }
+                return (values[half - 1] + values[half]) / 2.0;
+            }
+
+            search(query, k, filters) {
+                const results = [];
+                this._search(this.tree, query, k, results, filters);
+                results.sort((a, b) => a.dist - b.dist);
+                return results.slice(0, k).map(result => result.point);
+            }
+
+            _search(node, query, k, results, filters) {
+                if (node === null) {
+                    return;
+                }
+
+                const dist = this._euclideanDistance(query, node.point.features);
+
+                if (this._matchesFilters(node.point, filters)) {
+                    if (results.length < k) {
+                        results.push({ point: node.point, dist: dist });
+                    } else if (dist < results[results.length - 1].dist) {
+                        results[results.length - 1] = { point: node.point, dist: dist };
+                    }
+                    results.sort((a, b) => a.dist - b.dist);
+                }
+
+                if (node.left === null && node.right === null) {
+                    return;
+                }
+
+                if (dist < node.threshold) {
+                    if (dist - k <= node.threshold) {
+                        this._search(node.left, query, k, results, filters);
+                    }
+                    if (dist + k >= node.threshold) {
+                        this._search(node.right, query, k, results, filters);
+                    }
+                } else {
+                    if (dist + k >= node.threshold) {
+                        this._search(node.right, query, k, results, filters);
+                    }
+                    if (dist - k <= node.threshold) {
+                        this._search(node.left, query, k, results, filters);
+                    }
+                }
+            }
+
+            _matchesFilters(song, filters) {
+                if (filters.genre !== 'all' && song.genre !== filters.genre) {
+                    return false;
+                }
+                if (filters.artistGender !== 'all' && song.artistGender !== filters.artistGender) {
+                    return false;
+                }
+                if (filters.mood !== 'all' && song.mood !== filters.mood) {
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        const songs = [
+            { id: 1, name: 'Blinding Lights', features: [171, 200], genre: 'pop', artistGender: 'masculino', mood: 'feliz' },
+            { id: 2, name: 'Bohemian Rhapsody', features: [144, 354], genre: 'rock', artistGender: 'banda', mood: 'neutral' },
+            { id: 3, name: 'Shape of You', features: [96, 233], genre: 'pop', artistGender: 'masculino', mood: 'feliz' },
+            { id: 4, name: 'Someone Like You', features: [135, 285], genre: 'pop', artistGender: 'femenino', mood: 'triste' },
+            { id: 5, name: 'Thriller', features: [118, 358], genre: 'pop', artistGender: 'masculino', mood: 'neutral' },
+            { id: 6, name: 'Yesterday', features: [76, 123], genre: 'rock', artistGender: 'masculino', mood: 'triste' },
+            { id: 7, name: 'Billie Jean', features: [116, 294], genre: 'pop', artistGender: 'masculino', mood: 'feliz' },
+            { id: 8, name: 'Take Five', features: [174, 324], genre: 'jazz', artistGender: 'banda', mood: 'neutral' },
+            { id: 9, name: 'Clair de Lune', features: [65, 297], genre: 'clásica', artistGender: 'masculino', mood: 'neutral' },
+            { id: 10, name: 'Symphony No. 5', features: [108, 330], genre: 'clásica', artistGender: 'masculino', mood: 'neutral' },
+            { id: 11, name: 'Despacito', features: [89, 230], genre: 'reggaeton', artistGender: 'masculino', mood: 'feliz' },
+            { id: 12, name: 'Gasolina', features: [95, 200], genre: 'reggaeton', artistGender: 'masculino', mood: 'feliz' },
+            { id: 13, name: 'La Cumparsita', features: [85, 190], genre: 'cumbia', artistGender: 'banda', mood: 'feliz' },
+            { id: 14, name: 'Oye Como Va', features: [120, 240], genre: 'cumbia', artistGender: 'banda', mood: 'neutral' }
+        ];
+
+
+        const vpTree = new VPTree();
+        vpTree.build(songs);
+
+        document.getElementById('searchSongForm').addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            const tempo = document.getElementById('searchTempo').value;
+            const duration = document.getElementById('searchDuration').value;
+            const genre = document.getElementById('searchGenre').value;
+            const artistGender = document.getElementById('searchArtistGender').value;
+            const mood = document.getElementById('searchMood').value;
+
+            const filters = { genre, artistGender, mood };
+            const tempoRange = tempo.split('-').map(Number);
+            const durationRange = duration.split('-').map(Number);
+
+            const searchQuery = [(tempoRange[0] + tempoRange[1]) / 2, (durationRange[0] + durationRange[1]) / 2];
+            const k = 3;
+
+            const results = vpTree.search(searchQuery, k, filters);
+
+            const resultsContainer = document.getElementById('results');
+            resultsContainer.innerHTML = '';
+
+            if (results.length === 0) {
+                resultsContainer.innerHTML = '<p>No se encontraron canciones que coincidan con los criterios de búsqueda.</p>';
+            } else {
+                results.forEach(song => {
+                    const songElement = document.createElement('div');
+                    songElement.innerHTML = `
+                        <h3>${song.name}</h3>
+                        <p>${song.description}</p>
+                        <p>Género: ${song.genre}</p>
+                        <p>Género del Artista: ${song.artistGender}</p>
+                        <p>Estado de Ánimo: ${song.mood}</p>
+                    `;
+                    resultsContainer.appendChild(songElement);
+                });
+            }
+        });
+    </script>
+</body>
+
+</html>
