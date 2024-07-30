@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clustering Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .chart {
+            margin: 20px auto;
+            max-width: 800px;
+            height: 600px;
+            border: 1px solid #ccc;
+            position: relative;
+        }
+        .controls {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .info {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 10px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+        }
+        .info table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .info table, .info th, .info td {
+            border: 1px solid #ccc;
+        }
+        .info th, .info td {
+            padding: 8px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label for="mode">Modo:</label>
+        <select id="mode">
+            <option value="single">Un vecino más cercano</option>
+            <option value="k-neighbors">K vecinos más cercanos</option>
+        </select>
+        <label for="neighbors" id="neighbors-label" style="display: none;">Número de vecinos:</label>
+        <input type="number" id="neighbors" value="10" min="1" max="50" style="display: none;">
+    </div>
+    <div class="chart" id="chart"></div>
+    <div class="info" id="info">
+        <h2>Información de Asignación</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Cliente</th>
+                    <th>Motorizado</th>
+                    <th>Distancia</th>
+                </tr>
+            </thead>
+            <tbody id="info-body">
+            </tbody>
+        </table>
+        <p id="closest-motorized"></p>
+    </div>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <script>
+        const width = 800;
+        const height = 600;
+        const numPoints = 50;
+        const svg = d3.select("#chart").append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        const points = d3.range(numPoints).map(() => ({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            color: "blue",
+            id: ` N° ${Math.floor(Math.random() * 1000)}`
+        }));
+
+        const drawPoints = (points, highlightedPoints = []) => {
+            svg.selectAll("circle").remove();
+            svg.selectAll("text").remove();
+            svg.selectAll("circle")
+                .data(points)
+                .enter().append("circle")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .attr("r", 5)
+                .attr("fill", d => d.color);
+
+            svg.selectAll("text")
+                .data(points.filter(p => p.color === "purple" || highlightedPoints.includes(p)))
+                .enter().append("text")
+                .attr("x", d => d.x + 5)
+                .attr("y", d => d.y - 5)
+                .attr("fill", "black")
+                .text(d => d.color === "purple" ? "Cliente" : d.id);
+        };
+
+        drawPoints(points);
+
+        const calculateClusters = (newPoint, points, numNeighbors) => {
+            const distances = points.map(point => ({
+                ...point,
+                distance: Math.sqrt(Math.pow(point.x - newPoint.x, 2) + Math.pow(point.y - newPoint.y, 2))
+            }));
+            return distances.sort((a, b) => a.distance - b.distance).slice(0, numNeighbors);
+        };
+
+        document.getElementById('mode').addEventListener('change', (event) => {
+            const mode = event.target.value;
+            const neighborsLabel = document.getElementById('neighbors-label');
+            const neighborsInput = document.getElementById('neighbors');
+            if (mode === 'single') {
+                neighborsLabel.style.display = 'none';
+                neighborsInput.style.display = 'none';
+            } else {
+                neighborsLabel.style.display = 'inline';
+                neighborsInput.style.display = 'inline';
+            }
+        });
+
+        svg.on("click", function(event) {
+            const [x, y] = d3.pointer(event);
+            const newPoint = { x, y, color: "purple" };
+
+            const mode = document.getElementById('mode').value;
+            const numNeighbors = mode === 'single' ? 1 : parseInt(document.getElementById("neighbors").value, 10);
+
+            const clusteredPoints = calculateClusters(newPoint, points, numNeighbors);
+
+            points.forEach(point => point.color = "blue");
+
+            clusteredPoints.forEach(point => {
+                const index = points.findIndex(p => p.x === point.x && p.y === point.y);
+                if (index !== -1) {
+                    points[index].color = "red";
+                }
+            });
+
+            drawPoints(points, clusteredPoints);
+            svg.append("circle")
+                .attr("cx", newPoint.x)
+                .attr("cy", newPoint.y)
+                .attr("r", 5)
+                .attr("fill", newPoint.color);
+
+            svg.append("text")
+                .attr("x", newPoint.x + 5)
+                .attr("y", newPoint.y - 5)
+                .attr("fill", "black")
+                .text("Cliente");
+
+            clusteredPoints.forEach(point => {
+                svg.append("text")
+                    .attr("x", point.x + 5)
+                    .attr("y", point.y - 5)
+                    .attr("fill", "black")
+                    .text(point.id);
+            });
+
+            const infoBody = document.getElementById("info-body");
+            infoBody.innerHTML = "";
+            clusteredPoints.forEach(point => {
+                const row = document.createElement("tr");
+                const clientCell = document.createElement("td");
+                clientCell.textContent = "Cliente";
+                const motorizedCell = document.createElement("td");
+                motorizedCell.textContent = point.id;
+                const distanceCell = document.createElement("td");
+                distanceCell.textContent = point.distance.toFixed(2);
+                row.appendChild(clientCell);
+                row.appendChild(motorizedCell);
+                row.appendChild(distanceCell);
+                infoBody.appendChild(row);
+            });
+
+            const closestMotorized = clusteredPoints[0];
+            document.getElementById("closest-motorized").textContent = `El motorizado más cercano es ${closestMotorized.id} con una distancia de ${closestMotorized.distance.toFixed(2)}.`;
+        });
+    </script>
+</body>
+</html>
