@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Búsqueda de Imágenes</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            max-width: 800px;
+            width: 100%;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .button {
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 0;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .image-item {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+            text-align: center;
+            background-color: #fff;
+            width: 120px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .image-item img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        .image-info {
+            padding: 5px;
+            font-size: 14px;
+            color: #555;
+        }
+        .results-info {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Búsqueda de Imágenes</h1>
+        <h2>Subir Imágenes a la Base de Datos</h2>
+        <input type="file" id="databaseImages" accept="image/*" webkitdirectory multiple>
+        <button class="button" onclick="uploadDatabaseImages()">Subir Imágenes</button>
+        
+        <h2>Buscar Imágenes Similares</h2>
+        <input type="file" id="searchImage" accept="image/*">
+        <button class="button" onclick="searchSimilar()">Buscar</button>
+        
+        <div id="results" class="image-grid"></div>
+        <div id="resultsInfo" class="results-info"></div>
+    </div>
+    <script>
+        class VPTree {
+            constructor(items, distanceFunction) {
+                this.distanceFunction = distanceFunction;
+                this.root = this.buildTree(items);
+            }
+
+            buildTree(items) {
+                if (items.length === 0) return null;
+
+                const vantagePoint = items[Math.floor(Math.random() * items.length)];
+                const distances = items.map(item => ({
+                    item,
+                    distance: this.distanceFunction(vantagePoint, item)
+                }));
+
+                distances.sort((a, b) => a.distance - b.distance);
+
+                const medianIndex = Math.floor(distances.length / 2);
+                const node = {
+                    vantagePoint,
+                    medianDistance: distances[medianIndex].distance,
+                    left: this.buildTree(distances.slice(0, medianIndex).map(d => d.item)),
+                    right: this.buildTree(distances.slice(medianIndex + 1).map(d => d.item))
+                };
+
+                return node;
+            }
+
+            search(target, k, results = []) {
+                if (!this.root) return results;
+
+                this._search(this.root, target, k, results);
+                results.sort((a, b) => a.distance - b.distance);
+                return results.slice(0, k);
+            }
+
+            _search(node, target, k, results) {
+                if (!node) return;
+
+                const distance = this.distanceFunction(node.vantagePoint, target);
+                const updateResults = () => {
+                    results.push({ item: node.vantagePoint, distance });
+                    results.sort((a, b) => a.distance - b.distance);
+                    if (results.length > k) results.pop();
+                };
+
+                if (results.length < k || distance < results[results.length - 1].distance) {
+                    updateResults();
+                }
+
+                const goLeft = distance < node.medianDistance;
+                const closerChild = goLeft ? node.left : node.right;
+                const furtherChild = goLeft ? node.right : node.left;
+
+                this._search(closerChild, target, k, results);
+
+                if (results.length < k || Math.abs(distance - node.medianDistance) < results[results.length - 1].distance) {
+                    this._search(furtherChild, target, k, results);
+                }
+            }
+        }
+
+        let imageDatabase = [];
+        let vpTree = null;
+
+        function extractFeatures(imageData) {
+            let r = 0, g = 0, b = 0;
+            for (let i = 0; i < imageData.data.length; i += 4) {
+                r += imageData.data[i];
+                g += imageData.data[i + 1];
+                b += imageData.data[i + 2];
+            }
+            const pixelCount = imageData.data.length / 4;
+            return [r / pixelCount, g / pixelCount, b / pixelCount];
+        }
+
+        function uploadDatabaseImages() {
+            const files = document.getElementById('databaseImages').files;
+            let loadedImages = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function () {
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        context.drawImage(img, 0, 0, img.width, img.height);
+                        const imageData = context.getImageData(0, 0, img.width, img.height);
+                        const features = extractFeatures(imageData);
+                        imageDatabase.push({ src: img.src, features: features });
+                        loadedImages++;
+
+                        if (loadedImages === files.length) {
+                            vpTree = new VPTree(imageDatabase, (a, b) => euclideanDistance(a.features, b.features));
+                            alert('Imágenes subidas a la base de datos y Árbol VP construido exitosamente!');
+                        }
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function searchSimilar() {
+            const file = document.getElementById('searchImage').files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function () {
+                        const canvas = document.createElement('canvas');
+                        const context = canvas.getContext('2d');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        context.drawImage(img, 0, 0, img.width, img.height);
+                        const imageData = context.getImageData(0, 0, img.width, img.height);
+                        const searchFeatures = extractFeatures(imageData);
+
+                        const results = vpTree.search({ features: searchFeatures }, 5);
+
+                        const resultsDiv = document.getElementById('results');
+                        const resultsInfoDiv = document.getElementById('resultsInfo');
+                        resultsDiv.innerHTML = '';
+                        resultsInfoDiv.innerHTML = '';
+                        results.forEach(result => {
+                            const imgElement = document.createElement('img');
+                            imgElement.src = result.item.src;
+                            const div = document.createElement('div');
+                            div.className = 'image-item';
+                            div.appendChild(imgElement);
+                            const infoDiv = document.createElement('div');
+                            infoDiv.className = 'image-info';
+                            infoDiv.innerHTML = `Distancia: ${result.distance.toFixed(2)}<br>Características: [R: ${result.item.features[0].toFixed(2)}, G: ${result.item.features[1].toFixed(2)}, B: ${result.item.features[2].toFixed(2)}]`;
+                            div.appendChild(infoDiv);
+                            resultsDiv.appendChild(div);
+
+                            resultsInfoDiv.innerHTML += `<p><strong>Imagen:</strong> <img src="${result.item.src}" width="50"> <strong>Distancia:</strong> ${result.distance.toFixed(2)} <strong>Características:</strong> [R: ${result.item.features[0].toFixed(2)}, G: ${result.item.features[1].toFixed(2)}, B: ${result.item.features[2].toFixed(2)}]</p>`;
+                        });
+                    };
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function euclideanDistance(vector1, vector2) {
+            let sum = 0;
+            for (let i = 0; i < vector1.length; i++) {
+                sum += (vector1[i] - vector2[i]) ** 2;
+            }
+            return Math.sqrt(sum);
+        }
+    </script>
+</body>
+</html>
