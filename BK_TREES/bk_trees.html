@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Product Catalog with BK-trees</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #products {
+            margin-top: 20px;
+        }
+        .product {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Product Catalog</h1>
+    <div>
+        <label for="query">Search for similar products:</label>
+        <input type="text" id="query" placeholder="Enter product features...">
+        <button onclick="searchProducts()">Search</button>
+    </div>
+    <div id="products"></div>
+
+    <script src="bktree.js"></script>
+    <script>
+        // Sample products
+        const products = [
+            { id: 1, price: 100, category: 'Electronics', rating: 4.5, dimensions: '10x5x2' },
+            { id: 2, price: 150, category: 'Electronics', rating: 4.0, dimensions: '8x4x1' },
+            { id: 3, price: 50, category: 'Home', rating: 3.5, dimensions: '12x6x3' },
+            { id: 4, price: 200, category: 'Clothing', rating: 5.0, dimensions: 'N/A' },
+            { id: 5, price: 300, category: 'Electronics', rating: 4.8, dimensions: '9x5x2' },
+            // Add more products as needed
+        ];
+
+        const bkTree = new BKTree();
+        products.forEach(product => bkTree.add(product));
+
+        function displayProducts(products) {
+            const productsDiv = document.getElementById('products');
+            productsDiv.innerHTML = '';
+            products.forEach(product => {
+                const productDiv = document.createElement('div');
+                productDiv.className = 'product';
+                productDiv.textContent = `ID: ${product.id}, Price: ${product.price}, Category: ${product.category}, Rating: ${product.rating}, Dimensions: ${product.dimensions}`;
+                productsDiv.appendChild(productDiv);
+            });
+        }
+
+        function searchProducts() {
+            const query = document.getElementById('query').value;
+            // Simulate a product search based on query (for simplicity, we use the first product)
+            const similarProducts = bkTree.search(products[0], 2); // Search for products similar to the first product within distance 2
+            displayProducts(similarProducts);
+        }
+
+        displayProducts(products);
+    </script>
+</body>
+</html>
