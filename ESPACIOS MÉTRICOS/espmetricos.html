@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculadora de Distancia entre Dos Puntos</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: #f0f8ff;
+            color: #333;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #2c1152;
+        }
+
+        canvas {
+            border: 2px solid #34495e;
+            margin-bottom: 20px;
+            background-color: #fff;
+        }
+
+        #info {
+            text-align: center;
+            max-width: 600px;
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .coordinate {
+            margin: 10px 0;
+            font-weight: bold;
+            color: #2980b9;
+        }
+
+        ul {
+            text-align: left;
+            color: #2c3e50;
+        }
+
+        li {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Calculadora de Distancia entre Dos Puntos</h1>
+    <canvas id="canvas" width="500" height="500"></canvas>
+    <div id="info">
+        <div class="coordinate" id="coordenada-a">A: --</div>
+        <div class="coordinate" id="coordenada-b">B: --</div>
+        <div class="coordinate" id="distancia-d">d: --</div>
+        <h2>Propiedades de los Espacios Métricos</h2>
+        <ul>
+            <li><strong>No negatividad:</strong> Para los puntos A y B, la distancia d(A, B) ≥ 0.</li>
+            <li><strong>Distancia cero:</strong> d(A, B) = 0 si y solo si A = B.</li>
+            <li><strong>Simetría:</strong> d(A, B) = d(B, A).</li>
+            <li><strong>Desigualdad triangular:</strong> d(A, C) ≤ d(A, B) + d(B, C) para cualquier tercer punto C.</li>
+            <li><strong>Separabilidad:</strong> Los puntos A y B pueden ser separados por la distancia definida en el espacio.</li>
+        </ul>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const coordAEl = document.getElementById('coordenada-a');
+        const coordBEl = document.getElementById('coordenada-b');
+        const distanciaEl = document.getElementById('distancia-d');
+        const scale = 20; // Unidades por cada cuadro en el plano
+        let points = [];
+        let pointLabels = ['A', 'B'];
+        let pointColors = ['black', 'red'];
+
+        // Dibujar ejes y numerarlos
+        function drawAxes() {
+            const width = canvas.width;
+            const height = canvas.height;
+
+            ctx.strokeStyle = '#34495e';
+            ctx.lineWidth = 1;
+
+            // Eje X
+            ctx.beginPath();
+            ctx.moveTo(0, height / 2);
+            ctx.lineTo(width, height / 2);
+            ctx.stroke();
+
+            // Eje Y
+            ctx.beginPath();
+            ctx.moveTo(width / 2, 0);
+            ctx.lineTo(width / 2, height);
+            ctx.stroke();
+
+            // Numeración en el eje X
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#34495e';
+            for (let i = -width / 2 + scale; i < width / 2; i += scale) {
+                if (i !== 0) {
+                    ctx.fillText(i / scale, i + width / 2, height / 2 + 5);
+                }
+            }
+
+            // Numeración en el eje Y (positivo)
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let i = height / 2 - scale; i > 0; i -= scale) {
+                if (i !== 0) {
+                    ctx.fillText(i / scale, width / 2 - 5, height / 2 - i);
+                }
+            }
+
+            // Numeración en el eje Y (negativo)
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let i = height / 2 + scale; i < height; i += scale) {
+                if (i !== height / 2) {
+                    ctx.fillText(-i / scale, width / 2 - 5, i);
+                }
+            }
+        }
+
+        // Inicializar el canvas
+        drawAxes();
+
+        // Función para dibujar un punto con etiqueta y color
+        function drawPoint(x, y, label, color) {
+            const canvasX = x * scale + canvas.width / 2;
+            const canvasY = canvas.height / 2 - y * scale;
+
+            ctx.beginPath();
+            ctx.arc(canvasX, canvasY, 5, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Mostrar coordenadas del punto y la etiqueta
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText(`(${x}, ${y})`, canvasX + 10, canvasY);
+            ctx.fillText(label, canvasX + 10, canvasY - 15);
+        }
+
+        // Función para dibujar la línea entre dos puntos con etiqueta
+        function drawLine(point1, point2) {
+            const canvasX1 = point1.x * scale + canvas.width / 2;
+            const canvasY1 = canvas.height / 2 - point1.y * scale;
+            const canvasX2 = point2.x * scale + canvas.width / 2;
+            const canvasY2 = canvas.height / 2 - point2.y * scale;
+
+            ctx.beginPath();
+            ctx.moveTo(canvasX1, canvasY1);
+            ctx.lineTo(canvasX2, canvasY2);
+            ctx.strokeStyle = 'blue';
+            ctx.stroke();
+
+            // Mostrar etiqueta "d" en la línea
+            const midX = (canvasX1 + canvasX2) / 2;
+            const midY = (canvasY1 + canvasY2) / 2;
+            ctx.fillStyle = 'purple';
+            ctx.fillText('d', midX + 5, midY - 10);
+        }
+
+        // Función para calcular distancia Euclidiana entre dos puntos
+        function euclideanDistance(point1, point2) {
+            const dx = point2.x - point1.x;
+            const dy = point2.y - point1.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        // Función para manejar clics en el canvas
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left - canvas.width / 2) / scale;
+            const y = (canvas.height / 2 - (event.clientY - rect.top)) / scale;
+
+            if (points.length < 2) {
+                drawPoint(x, y, pointLabels[points.length], pointColors[points.length]);
+                points.push({ x, y });
+
+                if (points.length === 1) {
+                    coordAEl.textContent = `A= (${x.toFixed(2)}, ${y.toFixed(2)})`;
+                } else if (points.length === 2) {
+                    coordBEl.textContent = `B= (${x.toFixed(2)}, ${y.toFixed(2)})`;
+                    drawLine(points[0], points[1]);
+                    const distance = euclideanDistance(points[0], points[1]);
+                    distanciaEl.textContent = `d= ${distance.toFixed(2)}`;
+                }
+            } else {
+                // Limpiar canvas y dibujar ejes
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawAxes();
+
+                // Mostrar el punto clicado y reiniciar el cálculo
+                drawPoint(x, y, pointLabels[0], pointColors[0]);
+                points = [{ x, y }];
+                coordAEl.textContent = `A= (${x.toFixed(2)}, ${y.toFixed(2)})`;
+                coordBEl.textContent = `B= --`;
+                distanciaEl.textContent = `d= --`;
+            }
+        });
+    </script>
+</body>
+
+</html>
