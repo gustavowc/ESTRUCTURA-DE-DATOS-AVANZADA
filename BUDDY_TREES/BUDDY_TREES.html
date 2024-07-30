@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulación de Buddy System</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .memory-block {
+            border: 1px solid #000;
+            margin: 5px;
+            padding: 5px;
+            text-align: center;
+            display: inline-block;
+            vertical-align: top;
+            width: 60px;
+            height: 30px;
+        }
+        .allocated {
+            background-color: #f8d7da;
+        }
+        .free {
+            background-color: #d4edda;
+        }
+        #memory {
+            display: flex;
+            flex-wrap: wrap;
+        }
+        button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Simulación de Buddy System</h1>
+    <div id="memory"></div>
+    <button onclick="allocate(32)">Asignar 32 KB</button>
+    <button onclick="allocate(64)">Asignar 64 KB</button>
+    <button onclick="freeBlock(32)">Liberar 32 KB</button>
+    <button onclick="freeBlock(64)">Liberar 64 KB</button>
+    <script>
+        const memory = [
+            { size: 256, free: true }
+        ];
+
+        function renderMemory() {
+            const memoryDiv = document.getElementById('memory');
+            memoryDiv.innerHTML = '';
+            memory.forEach(block => {
+                const blockDiv = document.createElement('div');
+                blockDiv.className = 'memory-block ' + (block.free ? 'free' : 'allocated');
+                blockDiv.textContent = block.size + ' KB';
+                memoryDiv.appendChild(blockDiv);
+            });
+        }
+
+        function splitBlock(block, size) {
+            if (block.size === size) {
+                block.free = false;
+            } else {
+                const newSize = block.size / 2;
+                memory.push({ size: newSize, free: true });
+                memory.push({ size: newSize, free: true });
+                block.size = newSize;
+                block.free = false;
+            }
+        }
+
+        function allocate(size) {
+            const index = memory.findIndex(block => block.free && block.size >= size);
+            if (index !== -1) {
+                splitBlock(memory[index], size);
+                renderMemory();
+            } else {
+                alert('No hay suficiente memoria libre para asignar ' + size + ' KB');
+            }
+        }
+
+        function mergeBlocks() {
+            for (let i = 0; i < memory.length; i++) {
+                if (memory[i].free) {
+                    for (let j = 0; j < memory.length; j++) {
+                        if (i !== j && memory[j].free && memory[i].size === memory[j].size) {
+                            if (memory[i].size % 2 === 0 && Math.floor(i / memory[i].size) === Math.floor(j / memory[j].size)) {
+                                memory[i].size *= 2;
+                                memory.splice(j, 1);
+                                mergeBlocks();
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function freeBlock(size) {
+            const index = memory.findIndex(block => !block.free && block.size === size);
+            if (index !== -1) {
+                memory[index].free = true;
+                mergeBlocks();
+                renderMemory();
+            } else {
+                alert('No hay bloques asignados de ' + size + ' KB para liberar');
+            }
+        }
+
+        renderMemory();
+    </script>
+</body>
+</html>
