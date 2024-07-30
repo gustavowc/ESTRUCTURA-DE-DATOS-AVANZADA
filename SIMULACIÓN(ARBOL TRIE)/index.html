@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Visualización de Trie</title>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .controls input,
+        .controls button {
+            padding: 10px;
+            margin: 5px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .controls button {
+            background-color: #007BFF;
+            color: white;
+            cursor: pointer;
+        }
+
+        .controls button:hover {
+            background-color: #0056b3;
+        }
+
+        #trie {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: white;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 80%;
+            height: 60vh;
+            overflow: auto;
+        }
+
+        .node circle {
+            fill: #fff;
+            stroke: steelblue;
+            stroke-width: 3px;
+        }
+
+        .node text {
+            font: 12px sans-serif;
+            text-anchor: middle;
+            alignment-baseline: middle;
+        }
+
+        .link {
+            fill: none;
+            stroke: #ccc;
+            stroke-width: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Visualización de Trie</h1>
+    <div class="controls">
+        <input type="text" id="wordInput" placeholder="Ingrese una palabra">
+        <button onclick="insertWord()">Insertar</button>
+        <button onclick="searchWord()">Buscar</button>
+        <button onclick="deleteWord()">Eliminar</button>
+        <button onclick="resetTrie()">Resetear</button>
+        <button onclick="showAllWords()">Mostrar todas las palabras</button>
+        <button onclick="autocompleteWord()">Autocompletar</button>
+    </div>
+    <div id="trie"></div>
+    <script>
+        // Definición del Nodo Trie
+        class TrieNode {
+            constructor() {
+                this.children = {};
+                this.isEndOfWord = false;
+            }
+        }
+
+        // Definición de la Clase Trie
+        class Trie {
+            constructor() {
+                this.root = new TrieNode();
+            }
+
+            insert(word) {
+                let node = this.root;
+                for (let char of word) {
+                    if (!node.children[char]) {
+                        node.children[char] = new TrieNode();
+                    }
+                    node = node.children[char];
+                }
+                node.isEndOfWord = true;
+            }
+
+            search(word) {
+                let node = this.root;
+                for (let char of word) {
+                    if (!node.children[char]) {
+                        return false;
+                    }
+                    node = node.children[char];
+                }
+                return node.isEndOfWord;
+            }
+
+            delete(word, node = this.root, depth = 0) {
+                if (depth === word.length) {
+                    if (!node.isEndOfWord) return false;
+                    node.isEndOfWord = false;
+                    return Object.keys(node.children).length === 0;
+                }
+
+                const char = word[depth];
+                if (!node.children[char]) return false;
+
+                const shouldDeleteChild = this.delete(word, node.children[char], depth + 1);
+
+                if (shouldDeleteChild) {
+                    delete node.children[char];
+                    return Object.keys(node.children).length === 0;
+                }
+
+                return false;
+            }
+
+            getAllWords(node = this.root, prefix = '', words = []) {
+                if (node.isEndOfWord) words.push(prefix);
+                for (let char in node.children) {
+                    this.getAllWords(node.children[char], prefix + char, words);
+                }
+                return words;
+            }
+
+            autocomplete(prefix) {
+                let node = this.root;
+                for (let char of prefix) {
+                    if (!node.children[char]) {
+                        return [];
+                    }
+                    node = node.children[char];
+                }
+                return this.getAllWords(node, prefix);
+            }
+
+            getTrieStructure() {
+                return this.root;
+            }
+        }
+
+        const trie = new Trie();
+
+        const initialWords = ["hola", "mundo", "trie", "arbol", "visualizacion"];
+        initialWords.forEach(word => trie.insert(word));
+
+        function insertWord() {
+            const word = document.getElementById('wordInput').value;
+
+            // Verifica si la palabra ya está en el trie
+            if (trie.search(word)) {
+                // Muestra una alerta si la palabra ya existe en el trie
+                alert('La palabra ya está presente en el trie.');
+            } else {
+                // Inserta la palabra en el trie
+                trie.insert(word);
+                // Resalta la palabra como 'insertada'
+                highlightWord(word, 'insert');
+            }
+        }
+
+
+        function searchWord() {
+            const word = document.getElementById('wordInput').value;
+            const found = trie.search(word);
+
+            if (!found) {
+                // Muestra una alerta si la palabra no se encuentra en el trie
+                alert('La palabra no se encontró.');
+            }
+
+            // Resalta la palabra en el documento
+            highlightWord(word, found);
+        }
+        function deleteWord() {
+            const word = document.getElementById('wordInput').value;
+            trie.delete(word);
+            updateTrieVisualization();
+        }
+
+        function resetTrie() {
+            trie.root = new TrieNode();
+            initialWords.forEach(word => trie.insert(word));
+            updateTrieVisualization();
+        }
+
+        function showAllWords() {
+            const words = trie.getAllWords();
+            alert(`Palabras en el Trie: ${words.join(', ')}`);
+        }
+
+        function autocompleteWord() {
+            const prefix = document.getElementById('wordInput').value;
+            const suggestions = trie.autocomplete(prefix);
+            alert(`Sugerencias para "${prefix}": ${suggestions.join(', ')}`);
+        }
+
+        function highlightWord(word, found) {
+            if (!found) {
+                updateTrieVisualization();
+                return;
+            }
+
+            const nodesToHighlight = [];
+            let node = trie.root;
+            let currentPath = '';
+            for (let char of word) {
+                currentPath += char;
+                if (!node.children[char]) {
+                    return;
+                }
+                nodesToHighlight.push(currentPath);
+                node = node.children[char];
+            }
+
+            updateTrieVisualization(nodesToHighlight);
+            setTimeout(() => updateTrieVisualization(), 2000);
+        }
+
+        function updateTrieVisualization(highlightedPaths = []) {
+            const root = d3.hierarchy(trie.getTrieStructure(), d => Object.entries(d.children || {}).map(([key, value]) => ({ ...value, name: key, path: (d.path || '') + key })));
+
+            const width = 600;
+            const height = 800;
+
+            const treeLayout = d3.tree().size([width, height]);
+            const treeData = treeLayout(root);
+
+            const svg = d3.select('#trie').html('').append('svg')
+                .attr('width', width + 100)
+                .attr('height', height + 100);
+
+            const g = svg.append('g')
+                .attr('transform', 'translate(50, 50)');
+
+            const link = g.selectAll('.link')
+                .data(treeData.links())
+                .enter().append('path')
+                .attr('class', 'link')
+                .attr('d', d3.linkVertical()
+                    .x(d => d.x)
+                    .y(d => d.y));
+
+            const node = g.selectAll('.node')
+                .data(treeData.descendants())
+                .enter().append('g')
+                .attr('class', 'node')
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+
+            node.append('circle')
+                .attr('r', 20)
+                .style('fill', d => d.data.isEndOfWord ? 'red' : highlightedPaths.includes(d.data.path) ? 'yellow' : '#fff');
+
+            node.append('text')
+                .attr('dy', '.35em')
+                .text(d => d.data.name || '');
+        }
+
+        // Visualización inicial
+        updateTrieVisualization();
+    </script>
+</body>
+
+</html>
