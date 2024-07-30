@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca con BST y PHP</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #container {
+            width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+        }
+        input, button {
+            margin: 5px 0;
+            padding: 10px;
+            width: calc(100% - 22px);
+        }
+        .book-list {
+            margin-top: 20px;
+        }
+        .book-item {
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Biblioteca con BST y PHP</h1>
+        
+        <h3>Insertar Libro</h3>
+        <input type="number" id="bookID" placeholder="ID del libro" required>
+        <input type="text" id="bookTitle" placeholder="Título del libro" required>
+        <input type="text" id="bookAuthor" placeholder="Autor del libro" required>
+        <button onclick="insertBook()">Insertar</button>
+        
+        <h3>Buscar Libro por ID</h3>
+        <input type="number" id="searchID" placeholder="ID del libro">
+        <button onclick="searchBook()">Buscar</button>
+        <div id="searchResult"></div>
+
+        <h3>Eliminar Libro</h3>
+        <input type="number" id="deleteID" placeholder="ID del libro">
+        <button onclick="deleteBook()">Eliminar</button>
+
+        <h3>Lista de Libros</h3>
+        <div class="book-list" id="bookList"></div>
+    </div>
+
+    <script>
+        function insertBook() {
+            const id = document.getElementById('bookID').value;
+            const title = document.getElementById('bookTitle').value;
+            const author = document.getElementById('bookAuthor').value;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'insert.php', true);
+            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+            xhr.onload = function() {
+                alert(this.responseText);
+                renderBookList();
+            };
+            xhr.send(`id=${id}&titulo=${title}&autor=${author}`);
+        }
+
+        function searchBook() {
+            const id = document.getElementById('searchID').value;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'search.php', true);
+            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+            xhr.onload = function() {
+                const result = document.getElementById('searchResult');
+                if (this.responseText === "Libro no encontrado") {
+                    result.innerHTML = this.responseText;
+                } else {
+                    const book = JSON.parse(this.responseText);
+                    result.innerHTML = `ID: ${book.id}, Título: ${book.titulo}, Autor: ${book.autor}`;
+                }
+            };
+            xhr.send(`id=${id}`);
+        }
+
+        function deleteBook() {
+            const id = document.getElementById('deleteID').value;
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'delete.php', true);
+            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+            xhr.onload = function() {
+                alert(this.responseText);
+                renderBookList();
+            };
+            xhr.send(`id=${id}`);
+        }
+
+        function renderBookList() {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', 'list.php', true);
+            xhr.onload = function() {
+                const books = JSON.parse(this.responseText);
+                const bookList = document.getElementById('bookList');
+                bookList.innerHTML = '';
+                books.forEach(book => {
+                    const div = document.createElement('div');
+                    div.className = 'book-item';
+                    div.innerHTML = `ID: ${book.id}, Título: ${book.titulo}, Autor: ${book.autor}`;
+                    bookList.appendChild(div);
+                });
+            };
+            xhr.send();
+        }
+
+        renderBookList();
+    </script>
+</body>
+</html>
