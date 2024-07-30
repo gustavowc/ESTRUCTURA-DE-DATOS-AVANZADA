@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualización de Quad Tree</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .controls {
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .controls label,
+        .controls input {
+            margin: 5px;
+        }
+
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .info {
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+            text-align: left;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Visualización de Quad Tree</h1>
+    <div class="controls">
+        <input type="file" id="imageInput" accept="image/*">
+        <label for="threshold">Umbral de homogeneidad:</label>
+        <input type="range" id="threshold" min="0" max="255" value="15">
+        <span id="thresholdValue">15</span>
+        <button id="download">Descargar Resultados</button>
+    </div>
+    <div class="canvas-container">
+        <canvas id="canvas"></canvas>
+        <div class="info">
+            <p id="infoText"></p>
+        </div>
+    </div>
+    <script>
+        class QuadTree {
+            constructor(x, y, width, height, level) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.level = level;
+                this.children = [];
+            }
+        }
+
+        function loadImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    callback(img);
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function getGrayScaleData(image) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const grayScaleData = new Array(imageData.width).fill(0).map(() => new Array(imageData.height).fill(0));
+
+            for (let y = 0; y < imageData.height; y++) {
+                for (let x = 0; x < imageData.width; x++) {
+                    const index = (y * imageData.width + x) * 4;
+                    const gray = Math.round(0.299 * imageData.data[index] + 0.587 * imageData.data[index + 1] + 0.114 * imageData.data[index + 2]);
+                    grayScaleData[x][y] = gray;
+                }
+            }
+
+            return grayScaleData;
+        }
+
+        function isHomogeneous(data, startX, startY, endX, endY, threshold) {
+            let sum = 0, count = 0;
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    sum += data[x][y];
+                    count++;
+                }
+            }
+            const avg = sum / count;
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    if (Math.abs(data[x][y] - avg) > threshold) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function buildQuadTree(data, startX, startY, endX, endY, threshold, level) {
+            if (isHomogeneous(data, startX, startY, endX, endY, threshold)) {
+                return new QuadTree(startX, startY, endX - startX, endY - startY, level);
+            }
+
+            const midX = Math.floor((startX + endX) / 2);
+            const midY = Math.floor((startY + endY) / 2);
+            const node = new QuadTree(startX, startY, endX - startX, endY - startY, level);
+
+            node.children.push(buildQuadTree(data, startX, startY, midX, midY, threshold, level + 1));
+            node.children.push(buildQuadTree(data, midX, startY, endX, midY, threshold, level + 1));
+            node.children.push(buildQuadTree(data, startX, midY, midX, endY, threshold, level + 1));
+            node.children.push(buildQuadTree(data, midX, midY, endX, endY, threshold, level + 1));
+
+            return node;
+        }
+
+        function drawQuadTree(ctx, node) {
+            if (node.children.length === 0) {
+                ctx.strokeStyle = `rgb(${255 - node.level * 20}, ${255 - node.level * 20}, ${255 - node.level * 20})`;
+                ctx.strokeRect(node.x, node.y, node.width, node.height);
+                return;
+            }
+
+            for (const child of node.children) {
+                drawQuadTree(ctx, child);
+            }
+        }
+
+        function displayQuadTreeInfo(quadTree, fileName) {
+            let divisions = 0;
+            let maxLevel = 0;
+
+            function traverse(node) {
+                if (node.children.length > 0) {
+                    divisions += node.children.length;
+                    maxLevel = Math.max(maxLevel, node.level);
+                    for (const child of node.children) {
+                        traverse(child);
+                    }
+                }
+            }
+
+            traverse(quadTree);
+            const infoText = document.getElementById('infoText');
+            infoText.innerText = `Archivo: ${fileName}\nDivisiones realizadas: ${divisions}\nNivel máximo: ${maxLevel}`;
+        }
+
+        function processImage(image, threshold, fileName) {
+            const grayScaleData = getGrayScaleData(image);
+            const quadTree = buildQuadTree(grayScaleData, 0, 0, image.width, image.height, threshold, 0);
+            const canvas = document.getElementById('canvas');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(image, 0, 0);
+            drawQuadTree(ctx, quadTree);
+            displayQuadTreeInfo(quadTree, fileName);
+        }
+
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const threshold = parseInt(document.getElementById('threshold').value, 10);
+            if (file) {
+                loadImage(file, function(image) {
+                    processImage(image, threshold, file.name);
+                });
+            }
+        });
+
+        document.getElementById('threshold').addEventListener('input', function(event) {
+            document.getElementById('thresholdValue').innerText = event.target.value;
+            const file = document.getElementById('imageInput').files[0];
+            if (file) {
+                loadImage(file, function(image) {
+                    processImage(image, parseInt(event.target.value, 10), file.name);
+                });
+            }
+        });
+
+        document.getElementById('download').addEventListener('click', function() {
+            const canvas = document.getElementById('canvas');
+            const info = document.getElementById('infoText').innerText;
+            const zip = new JSZip();
+            const folder = zip.folder("QuadTreeResults");
+
+            canvas.toBlob(blob => {
+                folder.file("result.png", blob);
+                folder.file("result.txt", info);
+                zip.generateAsync({ type: "blob" }).then(content => {
+                    saveAs(content, "QuadTreeResults.zip");
+                });
+            });
+        });
+
+    </script>
+    <!-- Add JSZip and FileSaver.js libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+</body>
+</html>

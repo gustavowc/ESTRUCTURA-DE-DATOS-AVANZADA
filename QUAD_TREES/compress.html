@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compresión de Imágenes con Quad Trees</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        .controls {
+            margin: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .controls label,
+        .controls input {
+            margin: 5px;
+        }
+
+        .canvas-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        .info {
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin: 10px;
+            text-align: left;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 8px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <h1>Compresión de Imágenes con Quad Trees</h1>
+    <div class="controls">
+        <input type="file" id="imageInput" accept="image/*">
+        <label for="threshold">Umbral de homogeneidad:</label>
+        <input type="range" id="threshold" min="0" max="255" value="15">
+        <span id="thresholdValue">15</span>
+        <button id="reconstruct">Reconstruir Imagen</button>
+    </div>
+    <div class="canvas-container">
+        <canvas id="originalCanvas"></canvas>
+        <canvas id="reconstructedCanvas"></canvas>
+        <div class="info">
+            <p id="infoText"></p>
+        </div>
+    </div>
+    <script>
+        class QuadTree {
+            constructor(x, y, width, height, level, value = null) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.level = level;
+                this.value = value;
+                this.children = [];
+            }
+        }
+
+        function loadImage(file, callback) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    callback(img);
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        function getGrayScaleData(image) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = image.width;
+            canvas.height = image.height;
+            ctx.drawImage(image, 0, 0);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const grayScaleData = new Array(imageData.width).fill(0).map(() => new Array(imageData.height).fill(0));
+
+            for (let y = 0; y < imageData.height; y++) {
+                for (let x = 0; x < imageData.width; x++) {
+                    const index = (y * imageData.width + x) * 4;
+                    const gray = Math.round(0.299 * imageData.data[index] + 0.587 * imageData.data[index + 1] + 0.114 * imageData.data[index + 2]);
+                    grayScaleData[x][y] = gray;
+                }
+            }
+
+            return grayScaleData;
+        }
+
+        function isHomogeneous(data, startX, startY, endX, endY, threshold) {
+            let sum = 0, count = 0;
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    sum += data[x][y];
+                    count++;
+                }
+            }
+            const avg = sum / count;
+            for (let y = startY; y < endY; y++) {
+                for (let x = startX; x < endX; x++) {
+                    if (Math.abs(data[x][y] - avg) > threshold) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function buildQuadTree(data, startX, startY, endX, endY, threshold, level) {
+            if (isHomogeneous(data, startX, startY, endX, endY, threshold)) {
+                let sum = 0, count = 0;
+                for (let y = startY; y < endY; y++) {
+                    for (let x = startX; x < endX; x++) {
+                        sum += data[x][y];
+                        count++;
+                    }
+                }
+                const avg = sum / count;
+                return new QuadTree(startX, startY, endX - startX, endY - startY, level, avg);
+            }
+
+            const midX = Math.floor((startX + endX) / 2);
+            const midY = Math.floor((startY + endY) / 2);
+            const node = new QuadTree(startX, startY, endX - startX, endY - startY, level);
+
+            node.children.push(buildQuadTree(data, startX, startY, midX, midY, threshold, level + 1));
+            node.children.push(buildQuadTree(data, midX, startY, endX, midY, threshold, level + 1));
+            node.children.push(buildQuadTree(data, startX, midY, midX, endY, threshold, level + 1));
+            node.children.push(buildQuadTree(data, midX, midY, endX, endY, threshold, level + 1));
+
+            return node;
+        }
+
+        function drawQuadTree(ctx, node) {
+            if (node.children.length === 0) {
+                ctx.fillStyle = `rgb(${node.value}, ${node.value}, ${node.value})`;
+                ctx.fillRect(node.x, node.y, node.width, node.height);
+                return;
+            }
+
+            for (const child of node.children) {
+                drawQuadTree(ctx, child);
+            }
+        }
+
+        function reconstructImage(quadTree, width, height) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            drawQuadTree(ctx, quadTree);
+            return ctx.getImageData(0, 0, width, height);
+        }
+
+        function calculateMSE(original, reconstructed) {
+            let sum = 0;
+            for (let i = 0; i < original.data.length; i += 4) {
+                sum += Math.pow(original.data[i] - reconstructed.data[i], 2);
+            }
+            return sum / (original.data.length / 4);
+        }
+
+        function calculateMAD(original, reconstructed) {
+            let sum = 0;
+            for (let i = 0; i < original.data.length; i += 4) {
+                sum += Math.abs(original.data[i] - reconstructed.data[i]);
+            }
+            return sum / (original.data.length / 4);
+        }
+
+        function displayQuadTreeInfo(quadTree, mse, mad) {
+            const infoText = document.getElementById('infoText');
+            infoText.innerText = `MSE: ${mse.toFixed(2)}\nMAD: ${mad.toFixed(2)}`;
+        }
+
+        function processImage(file, threshold) {
+            loadImage(file, function(image) {
+                const grayScaleData = getGrayScaleData(image);
+                const quadTree = buildQuadTree(grayScaleData, 0, 0, image.width, image.height, threshold, 0);
+
+                const originalCanvas = document.getElementById('originalCanvas');
+                originalCanvas.width = image.width;
+                originalCanvas.height = image.height;
+                const originalCtx = originalCanvas.getContext('2d');
+                originalCtx.drawImage(image, 0, 0);
+
+                const reconstructedCanvas = document.getElementById('reconstructedCanvas');
+                reconstructedCanvas.width = image.width;
+                reconstructedCanvas.height = image.height;
+                const reconstructedCtx = reconstructedCanvas.getContext('2d');
+                const reconstructedImageData = reconstructImage(quadTree, image.width, image.height);
+                reconstructedCtx.putImageData(reconstructedImageData, 0, 0);
+
+                const originalImageData = originalCtx.getImageData(0, 0, image.width, image.height);
+                const mse = calculateMSE(originalImageData, reconstructedImageData);
+                const mad = calculateMAD(originalImageData, reconstructedImageData);
+
+                displayQuadTreeInfo(quadTree, mse, mad);
+            });
+        }
+
+        document.getElementById('imageInput').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            const threshold = parseInt(document.getElementById('threshold').value, 10);
+            if (file) {
+                processImage(file, threshold);
+            }
+        });
+
+        document.getElementById('threshold').addEventListener('input', function(event) {
+            document.getElementById('thresholdValue').innerText = event.target.value;
+            const file = document.getElementById('imageInput').files[0];
+            if (file) {
+                processImage(file, parseInt(event.target.value, 10));
+            }
+        });
+
+        document.getElementById('reconstruct').addEventListener('click', function() {
+            const file = document.getElementById('imageInput').files[0];
+            const threshold = parseInt(document.getElementById('threshold').value, 10);
+            if (file) {
+                processImage(file, threshold);
+            }
+        });
+
+    </script>
+</body>
+</html>
